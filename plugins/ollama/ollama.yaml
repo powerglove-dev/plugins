@@ -1,0 +1,28 @@
+# orcai sidecar descriptor for the Ollama provider plugin.
+#
+# Install: copy this file to ~/.config/orcai/wrappers/ollama.yaml
+# and ensure `orcai-ollama` is on $PATH (run `make install`).
+#
+# Calling convention (orcai sidecar protocol):
+#   input  — the prompt text, passed as stdin to orcai-ollama
+#   vars   — key/value pairs; the orcai runner passes vars.model as --model <value>
+#
+# Supported vars (set in pipeline step `vars:` block):
+#   model      (required) — Ollama model name, e.g. "llama3.2" or "qwen2.5"
+#                           Passed to orcai-ollama as --model <value> by the orcai runner.
+#                           Can also be provided directly as ORCAI_MODEL env var.
+#
+# Optional environment variables (for direct invocation or advanced use):
+#   ORCAI_OLLAMA_URL       — Base URL of the Ollama daemon.
+#                           Defaults to http://localhost:11434.
+#
+# Example pipeline step:
+#   - id: generate
+#     plugin: ollama
+#     prompt: "Explain BubbleTea in one paragraph."
+#     vars:
+#       model: llama3.2
+
+name: ollama
+description: "Run local AI models via the Ollama daemon (https://ollama.com)"
+command: orcai-ollama

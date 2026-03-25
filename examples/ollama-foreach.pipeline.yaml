@@ -1,0 +1,37 @@
+# Prerequisites:
+#   1. Ollama installed and running: ollama serve
+#   2. Model pulled:                 ollama pull llama3.2
+#   3. Plugin installed:             cd plugins/ollama && make install
+#
+# Run:
+#   orcai run examples/ollama-foreach.pipeline.yaml
+#
+# This pipeline uses `for_each` to expand one step definition into N parallel
+# invocations of the Ollama plugin. The `max_parallel` field forces the DAG
+# runner so all clones are dispatched concurrently (up to max_parallel at a time).
+#
+# The `for_each` value is a newline-separated list — each line becomes one clone.
+# The model is read from the pipeline-level `vars.model` variable, which can be
+# overridden at runtime.
+#
+# Pipeline vars:
+#   model  — Ollama model to use for all steps (default: llama3.2)
+
+name: ollama-foreach-demo
+version: "1.0"
+
+max_parallel: 4
+
+vars:
+  model: llama3.2
+
+steps:
+  - id: explain
+    for_each: "Go programming language\nBubbleTea TUI framework\nOllama local model runner\nORCAI Agentic BBS"
+    plugin: ollama
+    prompt: "Describe this topic in one sentence from the perspective of a software engineer."
+    vars:
+      model: "{{param.model}}"
+
+  - id: output
+    type: output
