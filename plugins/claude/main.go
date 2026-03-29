@@ -40,9 +40,9 @@ func main() {
 	os.Exit(code)
 }
 
-// execClaude runs `claude --print [--model <model>]` with the prompt on stdin.
+// execClaude runs `claude --print --dangerously-skip-permissions [--model <model>]` with the prompt on stdin.
 func execClaude(model, prompt string, stdout, stderr io.Writer) int {
-	args := []string{"--print"}
+	args := []string{"--print", "--dangerously-skip-permissions"}
 	if model != "" {
 		args = append(args, "--model", model)
 	}
