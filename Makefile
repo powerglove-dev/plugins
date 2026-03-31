@@ -1,4 +1,4 @@
-PLUGINS := ollama opencode jq claude github-copilot gemini
+PLUGINS := ollama opencode claude github-copilot gemini codex
 
 .PHONY: build install test test-e2e clean $(PLUGINS)
 
