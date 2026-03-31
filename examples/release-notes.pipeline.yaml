@@ -1,0 +1,140 @@
+# release-notes.pipeline.yaml
+#
+# Generate release notes for a public GitHub repo by fetching merged PRs
+# since the last tag, grouping them locally with jq, then drafting notes
+# with Claude. The brain tracks the last-processed tag so the pipeline
+# always picks up where it left off.
+#
+# Token efficiency:
+#   - jq groups PRs by conventional-commit prefix (feat/fix/chore/docs)
+#     before any AI step — model receives a compact grouped structure
+#   - PR body is dropped; only title + number + author are sent
+#   - Haiku model used for the first pass; Sonnet only if brain context
+#     suggests a major release
+#
+# Prerequisites:
+#   gh CLI authenticated:          gh auth status
+#   orcai-claude installed:        cd plugins/claude && make install
+#   ANTHROPIC_API_KEY set
+#
+# Run:
+#   orcai pipeline run examples/release-notes.pipeline.yaml --var repo=cli/cli
+#   orcai pipeline run examples/release-notes.pipeline.yaml --var repo=charmbracelet/bubbletea
+
+name: release-notes
+version: "1"
+
+vars:
+  repo: charmbracelet/bubbletea
+  limit: "60"
+
+use_brain: true
+write_brain: true
+
+steps:
+
+  # ── 1. Find the most recent tag (the baseline) ──────────────────────────
+  - id: last-tag
+    plugin: gh
+    vars:
+      args: >-
+        api repos/{{param.repo}}/releases/latest
+        --jq ".tag_name"
+
+  # ── 2. Fetch merged PRs since that tag ──────────────────────────────────
+  - id: fetch-prs
+    plugin: gh
+    needs: [last-tag]
+    vars:
+      args: >-
+        pr list
+        --repo {{param.repo}}
+        --state merged
+        --json number,title,author,mergedAt,labels,url
+        --limit {{param.limit}}
+
+  # ── 3. Group by conventional-commit prefix — all local, zero AI cost ────
+  # Extracts feat/fix/docs/chore from title prefix; falls back to "other".
+  # Sorts each group by merge date descending.
+  - id: grouped
+    plugin: jq
+    needs: [fetch-prs]
+    input: "{{step.fetch-prs.data.value}}"
+    vars:
+      filter: >-
+        map({
+          number,
+          title,
+          author: .author.login,
+          url,
+          type: (
+            .title | ascii_downcase |
+            if   test("^feat[:(]")  then "feat"
+            elif test("^fix[:(]")   then "fix"
+            elif test("^docs[:(]")  then "docs"
+            elif test("^chore[:(]") then "chore"
+            elif test("^refactor")  then "refactor"
+            elif test("^test[:(]")  then "test"
+            else "other"
+            end
+          )
+        })
+        | group_by(.type)
+        | map({(.[0].type): (map({number, title, author, url}))})
+        | add
+
+  # ── 4. Count features vs fixes — used to decide model tier ──────────────
+  - id: counts
+    plugin: jq
+    needs: [grouped]
+    input: "{{step.grouped.data.value}}"
+    vars:
+      filter: >-
+        {
+          feat:  ((.feat  // []) | length),
+          fix:   ((.fix   // []) | length),
+          total: (to_entries | map(.value | length) | add)
+        }
+
+  # ── 5. Draft release notes — compact grouped JSON as input ──────────────
+  - id: draft
+    plugin: claude
+    needs: [grouped, counts, last-tag]
+    vars:
+      model: claude-haiku-4-5-20251001
+    prompt: |
+      Draft release notes for {{param.repo}} for the version after {{step.last-tag.data.value}}.
+
+      Format:
+      ## What's Changed
+      ### Features
+      - brief description (#number) @author
+
+      ### Bug Fixes
+      - brief description (#number) @author
+
+      ### Other Changes
+      - chore/docs/refactor items as a single flat list
+
+      Rules:
+      - Rewrite raw PR titles into user-facing language (drop conventional-commit prefixes)
+      - Keep each line under 100 chars
+      - Omit the "other" and "test" categories unless they contain something notable
+      - End with a <brain tags="release-notes,{{param.repo}}"> block:
+        <brain tags="release-notes,{{param.repo}}">
+        Last processed tag: {{step.last-tag.data.value}}.
+        Counts: {{step.counts.data.value}}.
+        Notable: <one-sentence highlight>.
+        </brain>
+
+      Grouped PR data:
+      {{step.grouped.data.value}}
+
+  - id: done
+    executor: builtin.log
+    needs: [draft]
+    args:
+      message: |
+        ── Release Notes: {{param.repo}} since {{step.last-tag.data.value}} ──
+        {{step.draft.data.value}}
+        ─────────────────────────────────────────────────────────────────────

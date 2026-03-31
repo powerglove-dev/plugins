@@ -1,0 +1,116 @@
+# pr-triage.pipeline.yaml
+#
+# Fetch open PRs from a public GitHub repo, strip them down to minimal fields
+# with jq before the AI ever sees them, then ask Claude Haiku to triage.
+# Brain context lets the model compare against previous triage runs.
+#
+# Token efficiency:
+#   - jq pre-filters to only actionable PRs (not draft, review required or none)
+#   - jq projects to 5 fields per PR — eliminates ~80% of gh's JSON payload
+#   - Haiku used for structured triage (cheap, fast, good at classification)
+#
+# Prerequisites:
+#   gh CLI authenticated:          gh auth status
+#   orcai-claude installed:        cd plugins/claude && make install
+#   ANTHROPIC_API_KEY set
+#
+# Run:
+#   orcai pipeline run examples/pr-triage.pipeline.yaml
+#
+# Override repo at runtime:
+#   orcai pipeline run examples/pr-triage.pipeline.yaml --var repo=cli/cli
+
+name: pr-triage
+version: "1"
+
+vars:
+  repo: charmbraceful/bubbletea
+
+# Read brain so the model knows what was flagged last time.
+use_brain: true
+
+steps:
+
+  # ── 1. Fetch open PRs from the public repo ──────────────────────────────
+  - id: fetch-prs
+    plugin: gh
+    vars:
+      args: >-
+        pr list
+        --repo {{param.repo}}
+        --state open
+        --json number,title,isDraft,reviewDecision,updatedAt,author,url
+        --limit 50
+
+  # ── 2. Local filter + projection — no AI token budget spent yet ─────────
+  # Keep only non-draft PRs that need attention (no review or changes requested).
+  # Project to the 5 fields the AI actually needs.
+  - id: actionable
+    plugin: jq
+    needs: [fetch-prs]
+    input: "{{step.fetch-prs.data.value}}"
+    vars:
+      filter: >-
+        map(
+          select(
+            .isDraft == false and
+            (.reviewDecision == "REVIEW_REQUIRED" or .reviewDecision == "" or .reviewDecision == null)
+          )
+        )
+        | map({number, title, author: .author.login, updatedAt, url})
+
+  # ── 3. Bail early if nothing needs attention ────────────────────────────
+  - id: check-empty
+    executor: builtin.assert
+    needs: [actionable]
+    args:
+      condition: "not_empty"
+      value: "{{step.actionable.data.value}}"
+      message: "No actionable PRs found — all PRs are either drafts or already reviewed."
+
+  # ── 4. Claude Haiku triage — compact input, structured output ───────────
+  # The model receives only the filtered+projected list (~5 fields each).
+  # Brain context from previous runs is injected automatically.
+  - id: triage
+    plugin: claude
+    needs: [check-empty]
+    use_brain: true
+    write_brain: true
+    vars:
+      model: claude-haiku-4-5-20251001
+    prompt: |
+      You are triaging open pull requests for {{param.repo}}.
+
+      For each PR below, assign a priority (P1/P2/P3) and a one-line reason.
+      P1 = blocking or overdue (>7d without review)
+      P2 = should be reviewed soon (<7d)
+      P3 = low urgency
+
+      Output a JSON array only — no prose, no markdown fences:
+      [{"number": 123, "priority": "P1", "reason": "..."}]
+
+      After the JSON, include a brain note summarising the overall PR health:
+      <brain tags="pr-triage,{{param.repo}}">
+      As of <date>, {{param.repo}} has N actionable PRs. P1: X, P2: Y, P3: Z.
+      Notable: <one sentence about any standout patterns>.
+      </brain>
+
+      Open PRs needing attention:
+      {{step.actionable.data.value}}
+
+  # ── 5. Validate the JSON output ─────────────────────────────────────────
+  - id: validate
+    plugin: jq
+    needs: [triage]
+    input: "{{step.triage.data.value}}"
+    vars:
+      filter: "map(select(.priority != null)) | sort_by(.priority)"
+
+  - id: done
+    executor: builtin.log
+    needs: [validate]
+    args:
+      message: |
+        ── PR Triage: {{param.repo}} ───────────────────────────────────
+        {{step.validate.data.value}}
+        ────────────────────────────────────────────────────────────────

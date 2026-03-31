@@ -1,0 +1,116 @@
+# go-dep-audit.pipeline.yaml
+#
+# Audits the direct Go dependencies of any public GitHub repo.
+# Fetches go.mod via the gh API (raw file content), parses the require
+# block with jq, then asks Claude to flag outdated or risky deps.
+# Brain tracks the dependency snapshot so future runs surface new additions.
+#
+# Token efficiency:
+#   - go.mod is fetched raw and parsed to a compact dep list locally
+#   - Only direct (non-indirect) requires are sent to the AI
+#   - Brain diff from last run tells the model what changed so it doesn't
+#     re-analyse unchanged deps
+#
+# Prerequisites:
+#   gh CLI authenticated:          gh auth status
+#   orcai-claude installed:        cd plugins/claude && make install
+#   ANTHROPIC_API_KEY set
+#
+# Run:
+#   orcai pipeline run examples/go-dep-audit.pipeline.yaml
+#   orcai pipeline run examples/go-dep-audit.pipeline.yaml --var repo=charmbracelet/bubbletea
+
+name: go-dep-audit
+version: "1"
+
+vars:
+  repo: ollama/ollama
+
+use_brain: true
+write_brain: true
+
+steps:
+
+  # ── 1. Fetch go.mod via GitHub API (raw) ────────────────────────────────
+  - id: fetch-gomod
+    plugin: gh
+    vars:
+      args: >-
+        api repos/{{param.repo}}/contents/go.mod
+        --jq ".content"
+
+  # ── 2. Decode base64 and extract direct requires ────────────────────────
+  # GitHub API returns file content as base64. jq @base64d decodes it.
+  # The gsub strips whitespace noise; split on newlines, filter require lines,
+  # drop indirect deps, extract module path + version.
+  - id: parse-deps
+    plugin: jq
+    needs: [fetch-gomod]
+    input: "{{step.fetch-gomod.data.value}}"
+    vars:
+      filter: >-
+        @base64d
+        | split("\n")
+        | map(select(test("^\t[a-z]") and (test("// indirect") | not)))
+        | map(ltrimstr("\t") | split(" ") | {module: .[0], version: .[1]})
+
+  - id: assert-deps
+    executor: builtin.assert
+    needs: [parse-deps]
+    args:
+      condition: "not_empty"
+      value: "{{step.parse-deps.data.value}}"
+      message: "No direct dependencies found in go.mod — the repo may not use Go modules."
+
+  # ── 3. Count deps and compute a fingerprint ─────────────────────────────
+  # Cheap metadata step: gives the AI a count and lets us detect zero-change runs.
+  - id: meta
+    plugin: jq
+    needs: [parse-deps]
+    input: "{{step.parse-deps.data.value}}"
+    vars:
+      filter: >-
+        {
+          count: length,
+          modules: map(.module),
+          fingerprint: (map(.module + "@" + .version) | sort | join(",") | @base64)
+        }
+
+  # ── 4. Audit with Claude Haiku ──────────────────────────────────────────
+  # Brain context from prior runs is injected — model can diff against last snapshot.
+  - id: audit
+    plugin: claude
+    needs: [parse-deps, meta]
+    vars:
+      model: claude-haiku-4-5-20251001
+    prompt: |
+      Audit the direct Go dependencies of {{param.repo}}.
+
+      For each dependency, note:
+      - Whether the version looks outdated (pre-v1, very old patch, known-bad)
+      - Any well-known security or maintenance concerns
+      - Whether the module is actively maintained
+
+      Output a markdown table:
+      | Module | Version | Status | Notes |
+      |--------|---------|--------|-------|
+      Status values: OK / OUTDATED / RISKY / UNMAINTAINED
+
+      After the table, write:
+      <brain tags="go-dep-audit,{{param.repo}}">
+      Dep audit {{param.repo}}. Direct deps: {{step.meta.data.value.count}}.
+      Fingerprint: {{step.meta.data.value.fingerprint}}.
+      Risky/outdated: list module names that warranted RISKY or OUTDATED status.
+      </brain>
+
+      Dependencies (direct only):
+      {{step.parse-deps.data.value}}
+
+  - id: done
+    executor: builtin.log
+    needs: [audit]
+    args:
+      message: |
+        ── Go Dependency Audit: {{param.repo}} ─────────────────────────
+        {{step.audit.data.value}}
+        ─────────────────────────────────────────────────────────────────

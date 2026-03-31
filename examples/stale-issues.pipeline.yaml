@@ -1,0 +1,142 @@
+# stale-issues.pipeline.yaml
+#
+# Identifies stale issues in a public GitHub repo — no activity for N days —
+# and uses a local Ollama model to suggest triage actions before writing a
+# brain note. Claude Haiku only gets the pre-filtered, pre-scored list.
+#
+# Token efficiency:
+#   - jq does ALL filtering and scoring locally (age calculation, label check)
+#   - Ollama/qwen2.5 handles the bulk enrichment pass (free, local)
+#   - Claude Haiku only sees the top-N most stale issues for a final verdict
+#   - Brain context tells the model which issues it already recommended closing
+#
+# Prerequisites:
+#   gh CLI authenticated:          gh auth status
+#   Ollama running + qwen2.5:      ollama serve && ollama pull qwen2.5
+#   orcai-ollama installed:        cd plugins/ollama && make install
+#   orcai-claude installed:        cd plugins/claude && make install
+#   ANTHROPIC_API_KEY set
+#
+# Run:
+#   orcai pipeline run examples/stale-issues.pipeline.yaml
+#   orcai pipeline run examples/stale-issues.pipeline.yaml --var repo=golang/go --var stale_days=60
+
+name: stale-issues
+version: "1"
+
+vars:
+  repo: ollama/ollama
+  stale_days: "30"
+  top_n: "15"
+
+use_brain: true
+
+steps:
+
+  # ── 1. Fetch open issues (no PRs) ───────────────────────────────────────
+  - id: fetch-issues
+    plugin: gh
+    vars:
+      args: >-
+        issue list
+        --repo {{param.repo}}
+        --state open
+        --json number,title,updatedAt,createdAt,labels,comments,url
+        --limit 100
+
+  # ── 2. Score and filter locally ─────────────────────────────────────────
+  # Computes days_stale from updatedAt, filters to >= stale_days,
+  # drops any issues already labelled "stale" or "pinned",
+  # projects to minimal fields, sorts worst-first, takes top N.
+  - id: scored
+    plugin: jq
+    needs: [fetch-issues]
+    input: "{{step.fetch-issues.data.value}}"
+    vars:
+      filter: >-
+        map(
+          select(
+            (.labels | map(.name) | contains(["stale","pinned"]) | not)
+          )
+        )
+        | map(. + {
+            days_stale: (((now - (.updatedAt | fromdateiso8601)) / 86400) | floor),
+            label_names: [.labels[].name]
+          })
+        | map(select(.days_stale >= {{param.stale_days}}))
+        | sort_by(-.days_stale)
+        | .[:{{param.top_n}}]
+        | map({number, title, days_stale, comments, label_names, url})
+
+  - id: assert-stale
+    executor: builtin.assert
+    needs: [scored]
+    args:
+      condition: "not_empty"
+      value: "{{step.scored.data.value}}"
+      message: "No stale issues found — nothing to do."
+
+  # ── 3. Local model enrichment (free) ────────────────────────────────────
+  # qwen2.5 does a first-pass triage: close / needs-info / still-valid.
+  # This runs locally so the full issue list costs zero API tokens.
+  - id: enrich
+    plugin: ollama
+    needs: [scored]
+    vars:
+      model: qwen2.5:latest
+    prompt: |
+      Triage the following stale GitHub issues from {{param.repo}}.
+      For each, suggest one action: "close" (no longer relevant), "needs-info"
+      (waiting on reporter), or "still-valid" (legitimate open bug/feature).
+      Output a JSON array only:
+      [{"number": 123, "action": "close", "reason": "one sentence"}]
+
+      Issues (sorted by staleness, worst first):
+      {{step.scored.data.value}}
+
+  # ── 4. Parse and re-sort the enrichment output ──────────────────────────
+  - id: enriched
+    plugin: jq
+    needs: [enrich]
+    input: "{{step.enrich.data.value}}"
+    vars:
+      filter: "map(select(.action != null)) | group_by(.action) | map({(.[0].action): .}) | add"
+
+  # ── 5. Claude Haiku final verdict — reads brain for prior recommendations
+  - id: verdict
+    plugin: claude
+    needs: [enriched, scored]
+    use_brain: true
+    write_brain: true
+    vars:
+      model: claude-haiku-4-5-20251001
+    prompt: |
+      You are a GitHub issue triage assistant for {{param.repo}}.
+
+      A local model has already triaged these stale issues (>{{param.stale_days}} days).
+      Review the triage and produce a final action plan.
+
+      Output a markdown table:
+      | # | Title | Days Stale | Recommended Action | Reason |
+      |---|-------|------------|--------------------|--------|
+
+      Then write a brain note:
+      <brain tags="stale-issues,{{param.repo}}">
+      Stale issue triage {{param.repo}} ({{param.stale_days}}d threshold).
+      To close: list issue numbers. Needs-info: list. Still-valid: list.
+      </brain>
+
+      Enrichment from local model:
+      {{step.enriched.data.value}}
+
+      Full scored list (for cross-reference):
+      {{step.scored.data.value}}
+
+  - id: done
+    executor: builtin.log
+    needs: [verdict]
+    args:
+      message: |
+        ── Stale Issues: {{param.repo}} (>{{param.stale_days}} days) ────────
+        {{step.verdict.data.value}}
+        ─────────────────────────────────────────────────────────────────────

@@ -1,0 +1,134 @@
+# commit-digest.pipeline.yaml
+#
+# Produces a human-readable digest of recent commits to a public GitHub repo.
+# jq groups commits by author and type locally, Ollama summarises the bulk,
+# and the brain tracks the last-seen SHA so each run only processes new commits.
+#
+# Token efficiency:
+#   - Commit messages are extracted and grouped locally — raw API payload discarded
+#   - Ollama/qwen2.5 summarises the bulk diff (local, free)
+#   - Claude Haiku only receives the compact summary + brain delta, not raw commits
+#   - Brain stores the last-seen commit SHA: reruns skip already-processed commits
+#
+# Prerequisites:
+#   gh CLI authenticated:          gh auth status
+#   Ollama running + qwen2.5:      ollama serve && ollama pull qwen2.5
+#   orcai-ollama installed:        cd plugins/ollama && make install
+#   orcai-claude installed:        cd plugins/claude && make install
+#   ANTHROPIC_API_KEY set
+#
+# Run:
+#   orcai pipeline run examples/commit-digest.pipeline.yaml
+#   orcai pipeline run examples/commit-digest.pipeline.yaml --var repo=golang/go --var limit=50
+
+name: commit-digest
+version: "1"
+
+vars:
+  repo: charmbraceful/bubbletea
+  branch: main
+  limit: "30"
+
+use_brain: true
+
+steps:
+
+  # ── 1. Fetch recent commits ──────────────────────────────────────────────
+  - id: fetch-commits
+    plugin: gh
+    vars:
+      args: >-
+        api repos/{{param.repo}}/commits
+        --field sha=head
+        --field per_page={{param.limit}}
+        --field sha={{param.branch}}
+        --jq "[.[] | {sha: .sha[:8], message: (.commit.message | split(\"\n\")[0]), author: .commit.author.name, date: .commit.author.date}]"
+
+  # ── 2. Group by conventional-commit type, compute per-author counts ──────
+  - id: grouped
+    plugin: jq
+    needs: [fetch-commits]
+    input: "{{step.fetch-commits.data.value}}"
+    vars:
+      filter: >-
+        {
+          by_type: (
+            group_by(
+              .message | ascii_downcase |
+              if   test("^feat")   then "feat"
+              elif test("^fix")    then "fix"
+              elif test("^docs")   then "docs"
+              elif test("^chore")  then "chore"
+              elif test("^test")   then "test"
+              elif test("^refactor") then "refactor"
+              else "other" end
+            )
+            | map({(.[0].message | ascii_downcase |
+                if   test("^feat")   then "feat"
+                elif test("^fix")    then "fix"
+                elif test("^docs")   then "docs"
+                elif test("^chore")  then "chore"
+                elif test("^test")   then "test"
+                elif test("^refactor") then "refactor"
+                else "other" end): (map(.message))})
+            | add
+          ),
+          by_author: (group_by(.author) | map({(.[0].author): length}) | add),
+          head_sha: .[0].sha,
+          tail_sha: .[-1:][0].sha,
+          total: length
+        }
+
+  # ── 3. Ollama summarises the grouped commits (local, zero API cost) ──────
+  - id: summarise
+    plugin: ollama
+    needs: [grouped]
+    vars:
+      model: qwen2.5:latest
+    prompt: |
+      Summarise the following grouped Git commits from {{param.repo}}.
+      Write 2-4 sentences covering: what features were added, what was fixed,
+      and any notable patterns in the work. Be concise and technical.
+      Do not list individual commits.
+
+      Grouped commits:
+      {{step.grouped.data.value}}
+
+  # ── 4. Claude Haiku produces the final digest — reads brain for context ──
+  # Only receives the compact summary + metadata, not raw commits.
+  - id: digest
+    plugin: claude
+    needs: [summarise, grouped]
+    use_brain: true
+    write_brain: true
+    vars:
+      model: claude-haiku-4-5-20251001
+    prompt: |
+      Produce a brief commit digest for {{param.repo}} (branch: {{param.branch}}).
+
+      Format:
+      ### Commit Digest — {{param.repo}}
+      **Period:** <tail_sha>..<head_sha> (N commits)
+      **Top contributors:** list from by_author
+      **Breakdown:** feat: N | fix: N | docs: N | other: N
+      **Summary:** <2-3 sentences from the local summary below>
+
+      Then write a brain note so future runs know where to resume:
+      <brain tags="commit-digest,{{param.repo}}">
+      Last digest {{param.repo}}: head={{step.grouped.data.value.head_sha}},
+      total={{step.grouped.data.value.total}} commits.
+      Highlight: <one sentence from summary>.
+      </brain>
+
+      Metadata:
+      {{step.grouped.data.value}}
+
+      Local summary:
+      {{step.summarise.data.value}}
+
+  - id: done
+    executor: builtin.log
+    needs: [digest]
+    args:
+      message: |
+        {{step.digest.data.value}}
