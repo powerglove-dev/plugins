@@ -1,0 +1,23 @@
+# orcai sidecar descriptor for the OpenAI Codex provider plugin.
+#
+# Install: copy this file to ~/.config/orcai/wrappers/codex.yaml
+# and ensure `orcai-codex` is on $PATH (run `make install`).
+#
+# Prerequisites: Codex CLI installed and authenticated.
+#   npm install -g @openai/codex
+#
+# Calling convention:
+#   input  — the prompt text, passed as stdin to orcai-codex
+#   vars   — ORCAI_MODEL sets the model (optional)
+
+name: codex
+description: "OpenAI Codex coding agent (https://github.com/openai/codex)"
+kind: agent
+command: orcai-codex
+models:
+  - id: codex-mini-latest
+    label: "Codex Mini (Latest)"
+  - id: o4-mini
+    label: "o4-mini"
+  - id: o3
+    label: "o3"
