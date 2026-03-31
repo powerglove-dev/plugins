@@ -27,8 +27,6 @@ vars:
   repo: charmbracelet/bubbletea
   limit: "60"
 
-use_brain: true
-write_brain: true
 
 steps:
 

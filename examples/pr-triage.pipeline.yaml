@@ -26,7 +26,6 @@ vars:
   repo: charmbraceful/bubbletea
 
 # Read brain so the model knows what was flagged last time.
-use_brain: true
 
 steps:
 
@@ -73,8 +72,6 @@ steps:
   - id: triage
     plugin: claude
     needs: [check-empty]
-    use_brain: true
-    write_brain: true
     vars:
       model: claude-haiku-4-5-20251001
     prompt: |

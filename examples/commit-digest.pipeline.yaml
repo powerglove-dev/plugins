@@ -28,7 +28,6 @@ vars:
   branch: main
   limit: "30"
 
-use_brain: true
 
 steps:
 
@@ -98,8 +97,6 @@ steps:
   - id: digest
     plugin: claude
     needs: [summarise, grouped]
-    use_brain: true
-    write_brain: true
     vars:
       model: claude-haiku-4-5-20251001
     prompt: |

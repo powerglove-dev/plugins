@@ -28,7 +28,6 @@ vars:
   stale_days: "30"
   top_n: "15"
 
-use_brain: true
 
 steps:
 
@@ -105,8 +104,6 @@ steps:
   - id: verdict
     plugin: claude
     needs: [enriched, scored]
-    use_brain: true
-    write_brain: true
     vars:
       model: claude-haiku-4-5-20251001
     prompt: |
