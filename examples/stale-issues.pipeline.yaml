@@ -15,7 +15,6 @@
 #   Ollama running + qwen2.5:      ollama serve && ollama pull qwen2.5
 #   orcai-ollama installed:        cd plugins/ollama && make install
 #   orcai-claude installed:        cd plugins/claude && make install
-#   ANTHROPIC_API_KEY set
 #
 # Run:
 #   orcai pipeline run examples/stale-issues.pipeline.yaml

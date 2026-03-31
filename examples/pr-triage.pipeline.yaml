@@ -12,7 +12,6 @@
 # Prerequisites:
 #   gh CLI authenticated:          gh auth status
 #   orcai-claude installed:        cd plugins/claude && make install
-#   ANTHROPIC_API_KEY set
 #
 # Run:
 #   orcai pipeline run examples/pr-triage.pipeline.yaml
