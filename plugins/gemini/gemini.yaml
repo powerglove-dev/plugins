@@ -1,14 +1,14 @@
-# orcai sidecar descriptor for the Gemini provider plugin.
+# gl1tch sidecar descriptor for the Gemini provider plugin.
 #
-# Install: copy this file to ~/.config/orcai/wrappers/gemini.yaml
-# and ensure `orcai-gemini` is on $PATH (run `make install`).
+# Install: copy this file to ~/.config/glitch/wrappers/gemini.yaml
+# and ensure `gl1tch-gemini` is on $PATH (run `make install`).
 #
 # Prerequisites: gemini CLI installed and authenticated.
 #   https://ai.google.dev/gemini-api/docs/gemini-cli
 #
 # Calling convention:
-#   input  — the prompt text, passed as stdin to orcai-gemini
-#   vars   — ORCAI_MODEL is set to the selected model ID
+#   input  — the prompt text, passed as stdin to gl1tch-gemini
+#   vars   — GLITCH_MODEL is set to the selected model ID
 #
 # Example pipeline step:
 #   - id: agent
@@ -20,7 +20,7 @@
 name: gemini
 description: "Google Gemini AI via the gemini CLI (https://ai.google.dev/gemini-api/docs/gemini-cli)"
 kind: agent
-command: orcai-gemini
+command: gl1tch-gemini
 models:
   - id: gemini-2.5-pro
     label: "Gemini 2.5 Pro"

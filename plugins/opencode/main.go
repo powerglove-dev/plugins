@@ -163,13 +163,13 @@ func run(
 		return 1, fmt.Errorf("prompt is required: no input received on stdin")
 	}
 
-	// Resolve model: --model flag takes precedence over ORCAI_MODEL env var.
+	// Resolve model: --model flag takes precedence over GLITCH_MODEL env var.
 	model := *modelFlag
 	if model == "" {
-		model = getenv("ORCAI_MODEL")
+		model = getenv("GLITCH_MODEL")
 	}
 	if model == "" {
-		return 1, fmt.Errorf("model is required: set --model flag or ORCAI_MODEL environment variable")
+		return 1, fmt.Errorf("model is required: set --model flag or GLITCH_MODEL environment variable")
 	}
 
 	// For Ollama-backed models, pull the model if not already present.

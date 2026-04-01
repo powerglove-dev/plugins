@@ -82,6 +82,6 @@ func run(
 		return 1, fmt.Errorf("prompt is required: no input received on stdin")
 	}
 
-	model := getenv("ORCAI_MODEL")
+	model := getenv("GLITCH_MODEL")
 	return executor(model, prompt, stdout, stderr), nil
 }

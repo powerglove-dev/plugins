@@ -101,8 +101,8 @@ orcai-ollama --model llama3.2 \
 
 | Variable | Description | Default |
 |---|---|---|
-| `ORCAI_MODEL` | Fallback model name when `--model` is not set | — |
-| `ORCAI_OLLAMA_URL` | Base URL of the Ollama daemon | `http://localhost:11434` |
+| `GLITCH_MODEL` | Fallback model name when `--model` is not set | — |
+| `GLITCH_OLLAMA_URL` | Base URL of the Ollama daemon | `http://localhost:11434` |
 
 ## Flags
 

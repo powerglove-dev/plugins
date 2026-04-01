@@ -1,7 +1,7 @@
-BINARY      := orcai-gemini
+BINARY      := gl1tch-gemini
 SIDECAR     := gemini.yaml
 INSTALL_BIN := $(or $(shell test -w /usr/local/bin && echo /usr/local/bin),$(HOME)/.local/bin)
-WRAPPERS_DIR := $(HOME)/.config/orcai/wrappers
+WRAPPERS_DIR := $(HOME)/.config/glitch/wrappers
 
 .PHONY: build install test clean
 

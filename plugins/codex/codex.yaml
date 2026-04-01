@@ -1,19 +1,19 @@
-# orcai sidecar descriptor for the OpenAI Codex provider plugin.
+# gl1tch sidecar descriptor for the OpenAI Codex provider plugin.
 #
-# Install: copy this file to ~/.config/orcai/wrappers/codex.yaml
-# and ensure `orcai-codex` is on $PATH (run `make install`).
+# Install: copy this file to ~/.config/glitch/wrappers/codex.yaml
+# and ensure `gl1tch-codex` is on $PATH (run `make install`).
 #
 # Prerequisites: Codex CLI installed and authenticated.
 #   npm install -g @openai/codex
 #
 # Calling convention:
-#   input  — the prompt text, passed as stdin to orcai-codex
-#   vars   — ORCAI_MODEL sets the model (optional)
+#   input  — the prompt text, passed as stdin to gl1tch-codex
+#   vars   — GLITCH_MODEL sets the model (optional)
 
 name: codex
 description: "OpenAI Codex coding agent (https://github.com/openai/codex)"
 kind: agent
-command: orcai-codex
+command: gl1tch-codex
 models:
   - id: codex-mini-latest
     label: "Codex Mini (Latest)"

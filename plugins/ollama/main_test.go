@@ -41,7 +41,7 @@ func TestRun_EmptyStdin(t *testing.T) {
 
 func TestRun_MissingModel(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	// Neither --model flag nor ORCAI_MODEL env var is set.
+	// Neither --model flag nor GLITCH_MODEL env var is set.
 	err := run([]string{}, strings.NewReader("tell me a joke"), &stdout, &stderr, noEnv)
 	if err == nil {
 		t.Fatal("expected error when model is not set, got nil")
@@ -64,7 +64,7 @@ func TestRun_ModelFromFlag(t *testing.T) {
 		[]string{"--model", "llama3.2"},
 		strings.NewReader("ping"),
 		&stdout, &stderr,
-		envMap(map[string]string{"ORCAI_OLLAMA_URL": srv.URL}),
+		envMap(map[string]string{"GLITCH_OLLAMA_URL": srv.URL}),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -88,8 +88,8 @@ func TestRun_ModelFromEnv(t *testing.T) {
 		strings.NewReader("ping"),
 		&stdout, &stderr,
 		envMap(map[string]string{
-			"ORCAI_MODEL":      "qwen2.5",
-			"ORCAI_OLLAMA_URL": srv.URL,
+			"GLITCH_MODEL":      "qwen2.5",
+			"GLITCH_OLLAMA_URL": srv.URL,
 		}),
 	)
 	if err != nil {
@@ -101,7 +101,7 @@ func TestRun_ModelFromEnv(t *testing.T) {
 }
 
 func TestRun_DefaultURL(t *testing.T) {
-	// Verify that when ORCAI_OLLAMA_URL is absent, the default resolves to localhost:11434.
+	// Verify that when GLITCH_OLLAMA_URL is absent, the default resolves to localhost:11434.
 	// We test this by overriding the URL with a test server to avoid needing real Ollama.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(generateResponse{Response: "ok"})
@@ -113,7 +113,7 @@ func TestRun_DefaultURL(t *testing.T) {
 		[]string{"--model", "llama3.2"},
 		strings.NewReader("hi"),
 		&stdout, &stderr,
-		envMap(map[string]string{"ORCAI_OLLAMA_URL": srv.URL}),
+		envMap(map[string]string{"GLITCH_OLLAMA_URL": srv.URL}),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -135,7 +135,7 @@ func TestRun_OptionForwardedAsInt(t *testing.T) {
 		[]string{"--model", "llama3.2", "--option", "num_ctx=16384"},
 		strings.NewReader("ping"),
 		&stdout, &stderr,
-		envMap(map[string]string{"ORCAI_OLLAMA_URL": srv.URL}),
+		envMap(map[string]string{"GLITCH_OLLAMA_URL": srv.URL}),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -166,7 +166,7 @@ func TestRun_MultipleOptionsForwarded(t *testing.T) {
 		[]string{"--model", "llama3.2", "--option", "num_ctx=16384", "--option", "temperature=0"},
 		strings.NewReader("ping"),
 		&stdout, &stderr,
-		envMap(map[string]string{"ORCAI_OLLAMA_URL": srv.URL}),
+		envMap(map[string]string{"GLITCH_OLLAMA_URL": srv.URL}),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -197,7 +197,7 @@ func TestRun_NoOptionsAbsentFromRequest(t *testing.T) {
 		[]string{"--model", "llama3.2"},
 		strings.NewReader("ping"),
 		&stdout, &stderr,
-		envMap(map[string]string{"ORCAI_OLLAMA_URL": srv.URL}),
+		envMap(map[string]string{"GLITCH_OLLAMA_URL": srv.URL}),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -220,7 +220,7 @@ func TestRun_StringOptionPreserved(t *testing.T) {
 		[]string{"--model", "llama3.2", "--option", "stop=</s>"},
 		strings.NewReader("ping"),
 		&stdout, &stderr,
-		envMap(map[string]string{"ORCAI_OLLAMA_URL": srv.URL}),
+		envMap(map[string]string{"GLITCH_OLLAMA_URL": srv.URL}),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -308,7 +308,7 @@ func TestRun_CreateModel_SkipsInference(t *testing.T) {
 		[]string{"--model", "llama3.2", "--create-model", "llama3.2-16k"},
 		strings.NewReader(""),
 		&stdout, &stderr,
-		envMap(map[string]string{"ORCAI_OLLAMA_URL": srv.URL}),
+		envMap(map[string]string{"GLITCH_OLLAMA_URL": srv.URL}),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

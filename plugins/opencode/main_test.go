@@ -79,7 +79,7 @@ func TestRun_ModelFromEnv(t *testing.T) {
 		[]string{},
 		strings.NewReader("hello"),
 		&stdout, &stderr,
-		envMap(map[string]string{"ORCAI_MODEL": "ollama/qwen3.5"}),
+		envMap(map[string]string{"GLITCH_MODEL": "ollama/qwen3.5"}),
 		stub.exec,
 	)
 	if err != nil || code != 0 {
@@ -97,7 +97,7 @@ func TestRun_FlagOverridesEnv(t *testing.T) {
 		[]string{"--model", "ollama/llama3.2"},
 		strings.NewReader("hi"),
 		&stdout, &stderr,
-		envMap(map[string]string{"ORCAI_MODEL": "ollama/qwen3.5"}),
+		envMap(map[string]string{"GLITCH_MODEL": "ollama/qwen3.5"}),
 		stub.exec,
 	)
 	if err != nil || code != 0 {

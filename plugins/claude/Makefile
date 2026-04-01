@@ -1,7 +1,7 @@
-BINARY      := orcai-claude
+BINARY      := gl1tch-claude
 SIDECAR     := claude.yaml
 INSTALL_BIN := $(or $(shell test -w /usr/local/bin && echo /usr/local/bin),$(HOME)/.local/bin)
-WRAPPERS_DIR := $(HOME)/.config/orcai/wrappers
+WRAPPERS_DIR := $(HOME)/.config/glitch/wrappers
 
 .PHONY: build install test clean
 

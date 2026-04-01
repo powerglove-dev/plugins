@@ -85,7 +85,7 @@ echo "Explain this function." | orcai-opencode --model ollama/llama3.2
 
 | Variable | Description |
 |---|---|
-| `ORCAI_MODEL` | Fallback model when `--model` is not set |
+| `GLITCH_MODEL` | Fallback model when `--model` is not set |
 
 ## Flags
 

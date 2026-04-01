@@ -155,8 +155,8 @@ func createModel(base, name string, options map[string]any, stdout, stderr io.Wr
 // args are the CLI arguments (os.Args[1:] in production).
 // getenv is the environment resolver (os.Getenv in production).
 //
-// Model resolution priority: --model flag > ORCAI_MODEL env var.
-// URL resolution priority:   ORCAI_OLLAMA_URL env var > default http://localhost:11434.
+// Model resolution priority: --model flag > GLITCH_MODEL env var.
+// URL resolution priority:   GLITCH_OLLAMA_URL env var > default http://localhost:11434.
 func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, getenv func(string) string) error {
 	// Handle --list-models before flag parsing.
 	for _, arg := range args {
@@ -180,10 +180,10 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, get
 		return err
 	}
 
-	// Resolve model: --model flag takes precedence over ORCAI_MODEL env var.
+	// Resolve model: --model flag takes precedence over GLITCH_MODEL env var.
 	model := *modelFlag
 	if model == "" {
-		model = getenv("ORCAI_MODEL")
+		model = getenv("GLITCH_MODEL")
 	}
 
 	// Parse options from --option flags.
@@ -195,13 +195,13 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, get
 	// --create-model: build Modelfile alias and exit without running inference.
 	if *createModelFlag != "" {
 		if model == "" {
-			return fmt.Errorf("model is required: set --model flag or ORCAI_MODEL environment variable")
+			return fmt.Errorf("model is required: set --model flag or GLITCH_MODEL environment variable")
 		}
 		return createModelFn(model, *createModelFlag, options, stdout, stderr)
 	}
 
 	if model == "" {
-		return fmt.Errorf("model is required: set --model flag or ORCAI_MODEL environment variable")
+		return fmt.Errorf("model is required: set --model flag or GLITCH_MODEL environment variable")
 	}
 
 	// Read prompt from stdin.
@@ -214,8 +214,8 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, get
 		return fmt.Errorf("prompt is required: no input received on stdin")
 	}
 
-	// Resolve base URL from ORCAI_OLLAMA_URL, defaulting to localhost.
-	baseURL := getenv("ORCAI_OLLAMA_URL")
+	// Resolve base URL from GLITCH_OLLAMA_URL, defaulting to localhost.
+	baseURL := getenv("GLITCH_OLLAMA_URL")
 	if baseURL == "" {
 		baseURL = "http://localhost:11434"
 	}

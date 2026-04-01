@@ -1,16 +1,16 @@
-# orcai sidecar descriptor for the OpenCode provider plugin.
+# gl1tch sidecar descriptor for the OpenCode provider plugin.
 #
-# Install: copy this file to ~/.config/orcai/wrappers/opencode.yaml
-# and ensure `orcai-opencode` is on $PATH (run `make install`).
+# Install: copy this file to ~/.config/glitch/wrappers/opencode.yaml
+# and ensure `gl1tch-opencode` is on $PATH (run `make install`).
 #
 # Calling convention:
-#   input  — the prompt text, passed as stdin to orcai-opencode
-#   vars   — key/value pairs; the orcai runner passes vars.model as --model <value>
+#   input  — the prompt text, passed as stdin to gl1tch-opencode
+#   vars   — key/value pairs; the gl1tch runner passes vars.model as --model <value>
 #
 # Supported vars (set in pipeline step `vars:` block):
 #   model  (required) — Model in provider/model format, e.g. "ollama/llama3.2"
-#                       Passed to orcai-opencode as --model <value>.
-#                       Can also be provided as ORCAI_MODEL env var.
+#                       Passed to gl1tch-opencode as --model <value>.
+#                       Can also be provided as GLITCH_MODEL env var.
 #
 # Example pipeline step:
 #   - id: agent
@@ -22,7 +22,7 @@
 name: opencode
 description: "Agentic AI coding assistant via opencode (https://opencode.ai)"
 kind: agent
-command: orcai-opencode
+command: gl1tch-opencode
 # Models listed here are defaults. opencode supports any Ollama model via
 # "ollama/<model>" format — customise this list to match your local Ollama setup.
 models:
