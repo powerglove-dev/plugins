@@ -31,9 +31,12 @@ var knownModels = []struct {
 	{"gemini-3-pro-preview", "Gemini 3 Pro (Preview)"},
 }
 
-// execCopilot runs `copilot --prompt <prompt> --allow-all [--model <model>]`.
+// execCopilot runs `copilot --prompt <prompt> [--model <model>]`.
+// --allow-all is intentionally omitted: it causes the CLI to explore the local
+// codebase before answering, which blocks indefinitely for large prompts.
+// Without it, tool calls fail fast and the model answers from inline context.
 func execCopilot(model, prompt string, stdout, stderr io.Writer) int {
-	args := []string{"--prompt", prompt, "--allow-all"}
+	args := []string{"--prompt", prompt}
 	if model != "" {
 		args = append(args, "--model", model)
 	}
